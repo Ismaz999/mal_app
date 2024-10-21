@@ -20,6 +20,8 @@ st.sidebar.write(
     ":dog: Try uploading an image to watch the background magically removed. Full quality images can be downloaded from the sidebar."
 )
 
+mode_selection = st.radio("Choisissez le mode de sélection d'anime", ("Selectbox", "Option Menu"))
+
 input_utilisateur = st.text_input("Analyse des émotions d'une oeuvre")
 
 # def choix_anime(input_utilisateur):
@@ -31,49 +33,70 @@ input_utilisateur = st.text_input("Analyse des émotions d'une oeuvre")
 #     return tag_a
 
 if input_utilisateur:
-    URL = f"https://myanimelist.net/search/all?q={input_utilisateur.replace(' ', '%20')}"
-    rq_list = []
+    URL = f"https://myanimelist.net/search/all?q={input_utilisateur.replace(' ', '%20')}&cat=anime"
     recup_page = requests.get(URL)
     recup_soup = BeautifulSoup(recup_page.content, "html.parser")
+    
+    tags_a = recup_soup.find_all('a', class_='hoverinfo_trigger')
+    
+    if tags_a:
+        anime_options = []
+        anime_info = {}
+        
+        for tag_a in tags_a:
+            name_tag = tag_a.find('img')
+            if name_tag:
+                anime_name = name_tag['alt']  # Nom de l'anime
+                anime_image = name_tag['data-src']  # Lien vers l'image
+                
+                # Ajouter l'anime à la liste d'options et stocker ses infos
+                anime_options.append(anime_name)
+                anime_info[anime_name] = anime_image
 
-    tag_a = recup_soup.find('a', class_='hoverinfo_trigger')
+        if mode_selection == "Selectbox":
+            selected_anime = st.selectbox("Sélectionnez un anime :", anime_options)
+        else:
+            selected_anime = option_menu(
+                "Sélectionnez un anime :", 
+                options=anime_options,
+                icons=["image"] * len(anime_options),
+                menu_icon="cast", 
+                default_index=0,
+                orientation="horizontal"
+            )
 
-
-    # clean_tag = choix_anime(input_utilisateur)
-    if tag_a:
-        st.write("Voila le nom de l'anime : ", input_utilisateur)
-        # st.write("ca cest bonus : ", tag_a)
-
-        col3, col4= st.columns(2)
-
-        name_tag = tag_a.find('img')
-        col3.write(name_tag['alt'])
-        img_tag = tag_a.find('img')
-        col4.image(img_tag['data-src'])
-    else :
+        # Afficher l'anime sélectionné
+        if selected_anime:
+            st.write(f"Vous avez sélectionné : {selected_anime}")
+            st.image(anime_info[selected_anime], caption=selected_anime)
+    else:
         st.write("Aucun anime trouvé")
+
 else:
     st.image("https://i.imgur.com/GL1x4ad.jpeg", caption="En attente d'un anime")
 
 image_upload = st.sidebar.file_uploader("Joindre votre fichier : ", type=["jpg", "png", "jpeg"])
 
 temp_options = ['low', 'medium', 'high', 'naruto']
-st.sidebar.header("BONSOIR")
-temp = st.sidebar.select_slider("Choose a temperature :", temp_options)
+# st.sidebar.header("BONSOIR")
+# temp = st.sidebar.select_slider("Choose a temperature :", temp_options)
 
-st.write("La température est ", temp)
-st.sidebar.header("BONJOUR")
+# st.write("La température est ", temp)
+# st.sidebar.header("BONJOUR")
 
 menu = ['viande', 'poisson', 'tomate']
 
+st.button("OUI JE VEUX ANALYSER CETTE OEUVRE")
 
-selection_menu = option_menu(
-    "Choix du plat", 
-    options=menu, 
-    icons=[':chicken:',':fish:',':tomato:'],
-    menu_icon="cast")
+with st.sidebar:
 
-st.selectbox("Menu", options=temp_options)
+    selection_menu = option_menu(
+        "Choix du plat", 
+        options=menu, 
+        icons=[':chicken:',':fish:',':tomato:'],
+        menu_icon="cast")
+
+st.sidebar.selectbox("Menu", options=temp_options)
 
 if selection_menu == "viande":
     st.write(f"Le menu {selection_menu} est un sandwich au poulet")
