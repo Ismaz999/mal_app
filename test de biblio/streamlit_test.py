@@ -73,7 +73,7 @@ if input_utilisateur:
         st.write("Aucun anime trouvé")
 
 else:
-    st.image("https://i.imgur.com/GL1x4ad.jpeg", caption="En attente d'un anime")
+    st.image("https://i.imgur.com/X7wgOv2.gif", caption="En attente d'un anime")
 
 image_upload = st.sidebar.file_uploader("Joindre votre fichier : ", type=["jpg", "png", "jpeg"])
 
