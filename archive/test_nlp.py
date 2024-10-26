@@ -1,6 +1,6 @@
 from transformers import pipeline
 import pandas as pd
-
+import os
 
 df_anime = pd.read_csv("anime_reviews/anime_reviews_2001_Tengen_Toppa_Gurren_Lagann.csv")
 
@@ -15,17 +15,32 @@ def analyze_sentiment_and_emotions(text):
 
     segments = split_text(text)  
     all_sentiments = []
-    all_emotions = []
+    # all_emotions = []
+    emotion_totals = {} 
 
     for segment in segments:
         sentiment_result = sentiment_classifier(segment)[0]['label']
         all_sentiments.append(sentiment_result)
         
         emotion_result = emotion_classifier(segment)
-        top_emotions = {emotion['label']: emotion['score'] for emotion in emotion_result[0]}
-        all_emotions.append(top_emotions)
 
-    return ', '.join(all_sentiments), all_emotions     
+        for emotion in emotion_result[0]:  
+            label = emotion['label']
+            score = emotion['score']
+            if label in emotion_totals:
+                emotion_totals[label] += score
+            else:
+                emotion_totals[label] = score
+
+    # Calculer la moyenne des émotions
+    total_segments = len(segments)
+    avg_emotions = {emotion: score / total_segments for emotion, score in emotion_totals.items()}
+
+    # Trier les émotions par score et prendre les deux principales
+    sorted_emotions = sorted(avg_emotions.items(), key=lambda x: x[1], reverse=True)
+    top_two_emotions = sorted_emotions[:2]  # Retourner les deux émotions principales
+
+    return ', '.join(all_sentiments), top_two_emotions     
 
     # sentiment_result = sentiment_classifier(text)[0]['label']
     
@@ -36,9 +51,14 @@ def analyze_sentiment_and_emotions(text):
 
 df_anime[['sentiment', 'emotions']] = df_anime['review'].apply(lambda x: pd.Series(analyze_sentiment_and_emotions(x)))
 
-print(df_anime[['review', 'sentiment', 'emotions']].head())
+file_path = "anime_reviews_with_sentiments_and_emotions.csv"
 
-df_anime.to_csv("anime_reviews_with_sentiments_and_emotions.csv", sep=';', index=False)
+if os.path.exists(file_path):
+    os.rename(file_path, "anime_reviews_with_sentiments_and_emotions_old.csv")
+
+df_anime.to_csv(file_path, sep=';', index=False)
+
+print(df_anime[['review', 'sentiment', 'emotions']].head())
 
 # classifier = pipeline("sentiment-analysis")
 # avis = "J'adore cet anime, les combats sont incroyables !"

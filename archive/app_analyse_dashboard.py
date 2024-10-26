@@ -1,6 +1,6 @@
 import streamlit as st
-
-
+import requests
+import nltk
 from io import BytesIO
 from PIL import Image
 import rembg
@@ -15,6 +15,8 @@ import plotly.express as px
 
 from fichier_def_mult import request_anime, extract_id_and_title, get_anime_reviews, analyze_sentiment_and_emotions
 
+from fonction_streamlit import render_analysis_tab, render_analysis_tab, sanitize_filename
+
 st.set_page_config(layout="wide", page_title="Sentiment Analysis") 
 st.markdown('<h1 align="center">Analyse des avis d\'anime</h1>', unsafe_allow_html=True)
 
@@ -23,7 +25,12 @@ input_utilisateur = st.text_input("Analyse des émotions d'une oeuvre")
 
 tabs1, tabs2 = st.tabs(["Menu principal", "Analyse"])
 
-df_anime = None  
+if 'df_anime' not in st.session_state:
+    st.session_state.df_anime = None
+if 'anime_name' not in st.session_state:
+    st.session_state.anime_name = None
+if 'anime_id' not in st.session_state:
+    st.session_state.anime_id = None
 
 with tabs1:
     if input_utilisateur:
@@ -77,13 +84,24 @@ with tabs1:
 
                     # Appeler tes fonctions pour récupérer les reviews
                     try:
-                        titre_anime, lien_anime = request_anime(selected_anime)  # Récupérer le titre et l'URL
-                        anime_id, anime_title = extract_id_and_title(lien_anime)  # Extraire l'ID de l'anime
-                        df_anime = get_anime_reviews(anime_id, anime_title)  # Récupérer les reviews depuis MyAnimeList
+                        with st.spinner:
 
-                        st.success("Analyse terminée ! Allez voir les résultats dans l'onglet 'Analyse'.")
+                            titre_anime, lien_anime = request_anime(selected_anime)  # Récupérer le titre et l'URL
+                            anime_id, anime_title = extract_id_and_title(lien_anime)  # Extraire l'ID de l'anime
+                            df_anime = get_anime_reviews(anime_id, anime_title)  # Récupérer les reviews depuis MyAnimeList
+
+                            df_anime[['sentiment', 'emotions']] = df_anime['review'].apply(lambda x: pd.Series(analyze_sentiment_and_emotions(x)))
+
+                            df_anime['rating'] = pd.to_numeric(df_anime['rating'], errors='coerce')
+                            df_anime['date'] = pd.to_datetime(df_anime['date'], errors='coerce')
+
+                            st.session_state.df_anime = df_anime
+                            st.session_state.anime_name = selected_anime  # Stocker le nom de l'anime
+                            st.session_state.anime_id = anime_id  # Stocker l'ID de l'anime
+
+                            st.success("Analyse terminée ! Allez voir les résultats dans l'onglet 'Analyse'.")
                     except Exception as e:
-                        st.error(f"Erreur lors de la récupération des reviews : {e}")
+                            st.error(f"Erreur lors de la récupération des reviews : {e}")
         else:
             st.write("Aucun anime trouvé. Veuillez essayer un autre nom.")
 
@@ -92,12 +110,14 @@ with tabs1:
 
 with tabs2:
     if df_anime is not None and not df_anime.empty:
-        # Analyser les sentiments et les émotions
-        df_anime[['sentiment', 'emotions']] = df_anime['review'].apply(lambda x: pd.Series(analyze_sentiment_and_emotions(x)))
 
-        # Nettoyer les données
-        df_anime['rating'] = pd.to_numeric(df_anime['rating'], errors='coerce')
-        df_anime['date'] = pd.to_datetime(df_anime['date'], errors='coerce')
+        st.header("RESULTAT D'ANALYSE")
+        # # Analyser les sentiments et les émotions
+        # df_anime[['sentiment', 'emotions']] = df_anime['review'].apply(lambda x: pd.Series(analyze_sentiment_and_emotions(x)))
+
+        # # Nettoyer les données
+        # df_anime['rating'] = pd.to_numeric(df_anime['rating'], errors='coerce')
+        # df_anime['date'] = pd.to_datetime(df_anime['date'], errors='coerce')
 
         # Graphique linéaire des notes moyennes par jour
         df_grouped = df_anime.groupby('date')['rating'].mean().reset_index()
@@ -117,3 +137,6 @@ with tabs2:
         st.plotly_chart(fig_emotions)
     else:
         st.write("Aucune analyse effectuée ou données invalides. Sélectionnez un anime pour commencer l'analyse.")
+
+    csv = df_anime.to_csv(index=False).encode('utf-8')
+    st.download_button('Sauvegarder les données au format CSV :arrow_down:', csv )

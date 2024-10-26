@@ -3,7 +3,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 
-from test_recherche_anime import request_anime, extract_id_and_title
+from fonction_search import request_anime, extract_id_and_title
 
 avis_par_page = 20
 
