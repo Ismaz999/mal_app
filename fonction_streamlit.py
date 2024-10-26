@@ -82,18 +82,28 @@ def render_analysis_tab(df_anime, anime_title, anime_id):
         fig = px.line(df_grouped, x='date', y='rating', title="Évolution des notes moyennes par jour")
         st.plotly_chart(fig)
 
-        # Extraire les émotions et les visualiser
-        df_exploded = df_anime.explode('emotions')
-        df_exploded['emotion_name'] = df_exploded['emotions'].apply(
-            lambda x: x[0] if isinstance(x, tuple) else None
-        )
+        emotions_columns = ['anger', 'disgust', 'fear', 'joy', 'neutral', 'sadness', 'surprise']
 
-        # Compter les occurrences des émotions
-        df_emotion_counts = df_exploded['emotion_name'].value_counts().reset_index()
-        df_emotion_counts.columns = ['emotion', 'count']
+        for col in emotions_columns:
+            if col not in df_anime.columns:
+                df_anime[col] = 0
+
+        emotions_sums = df_anime[emotions_columns].sum()
+        df_emotions_sums = emotions_sums.reset_index()
+        df_emotions_sums.columns = ['emotion', 'count']
+
+        # # Extraire les émotions et les visualiser
+        # df_exploded = df_anime.explode('emotions')
+        # df_exploded['emotion_name'] = df_exploded['emotions'].apply(
+        #     lambda x: x[0] if isinstance(x, tuple) else None
+        # )
+        # # Compter les occurrences des émotions
+        # df_emotion_counts = df_exploded['emotion_name'].value_counts().reset_index()
+        # df_emotion_counts.columns = ['emotion', 'count']
 
         # Graphique en camembert des émotions
-        fig_emotions = px.pie(df_emotion_counts, values='count', names='emotion', title="Répartition des émotions")
+        print(emotions_sums)
+        fig_emotions = px.pie(df_emotions_sums, values='count', names='emotion', title="Répartition des émotions")
         st.plotly_chart(fig_emotions)
 
         # Création du nom de fichier dynamique et bouton de téléchargement
