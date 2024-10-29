@@ -6,6 +6,8 @@ from nltk.corpus import stopwords
 import re
 from bs4 import BeautifulSoup
 import requests
+import nltk 
+from fonction_analyse import plot_emotion_pie_chart,plot_line_chart,return_date,filtre_reviews,display_metrics,display_wordcloud,colonne_emotions,prepare_emotion_summary,heatmap_chart
 
 DEBUG = True
 
@@ -66,45 +68,59 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
         st.image("https://i.gifer.com/Ptwe.gif", caption="En attente d'un anime")
 
 def render_analysis_tab(df_anime, anime_title, anime_id):
-    # if df_anime is not None and not df_anime.empty:
-    #     # Nettoyage de la colonne 'emotions' pour éviter les erreurs de conversion
-    #     df_anime['emotions'] = df_anime['emotions'].apply(lambda x: x if isinstance(x, list) else []) PLUS UTILE CAR JAI SEPARE MES EMOTIOSNS EN COLONNES DISTINCTE
-
-    if DEBUG:
-        print("Debug : Contenu de la colonne 'emotions' après nettoyage")
-        print(df_anime['emotions'].head())
+    if df_anime is not None and not df_anime.empty:
+        if DEBUG:
+            print("Debug : Contenu de la colonne 'emotions' après nettoyage")
+            print(df_anime['emotions'].head())
 
         st.header("Résultats de l'Analyse")
-        # st.dataframe(df_anime) SINON JAI DES ERREURS A CAUSE DE PYARROW ET DES TUPLES
 
-        # Graphique linéaire des notes moyennes par jour
-        df_grouped = df_anime.groupby('date')['rating'].mean().reset_index()
-        fig = px.line(df_grouped, x='date', y='rating', title="Évolution des notes moyennes par jour")
-        st.plotly_chart(fig)
+        # Télécharger les stopwords si nécessaire
+        if 'stopword_dl' not in st.session_state:
+            nltk.download('stopwords')
+            st.session_state.stopword_dl = True
 
-        emotions_columns = ['anger', 'disgust', 'fear', 'joy', 'neutral', 'sadness', 'surprise']
+        # Obtenir les dates limites
+        start_date, end_date, start, end = return_date(df_anime)
 
-        for col in emotions_columns:
-            if col not in df_anime.columns:
-                df_anime[col] = 0
+        # Initialiser les colonnes pour les KPI
+        st1, st2, st3, st4 = st.columns(4)
 
-        emotions_sums = df_anime[emotions_columns].sum()
-        df_emotions_sums = emotions_sums.reset_index()
-        df_emotions_sums.columns = ['emotion', 'count']
+        # Filtrer les reviews en fonction des interactions utilisateur
+        df_filtered, bouton_negatif, bouton_positif, bouton_tous = filtre_reviews(df_anime, st4, start, end)
 
-        # # Extraire les émotions et les visualiser
-        # df_exploded = df_anime.explode('emotions')
-        # df_exploded['emotion_name'] = df_exploded['emotions'].apply(
-        #     lambda x: x[0] if isinstance(x, tuple) else None
-        # )
-        # # Compter les occurrences des émotions
-        # df_emotion_counts = df_exploded['emotion_name'].value_counts().reset_index()
-        # df_emotion_counts.columns = ['emotion', 'count']
+        # Appliquer les filtres de sentiments sur les reviews
+        if bouton_positif:
+            df_filtered = df_filtered[df_filtered['sentiment'] == 'POSITIVE']
+        if bouton_negatif:
+            df_filtered = df_filtered[df_filtered['sentiment'] == 'NEGATIVE']
+        if bouton_tous:
+            df_filtered = df_anime[(df_anime['date'] >= start_date) & (df_anime['date'] <= end_date)]
 
-        # Graphique en camembert des émotions
-        print(emotions_sums)
-        fig_emotions = px.pie(df_emotions_sums, values='count', names='emotion', title="Répartition des émotions")
-        st.plotly_chart(fig_emotions)
+        # Afficher les métriques
+        display_metrics(df_filtered, st1, st2, st3)
+
+        # Redéfinir les colonnes pour les graphiques
+        col_left, col_right = st.columns(2)
+
+        # Graphiques
+        fig_line = plot_line_chart(df_filtered)  # Utiliser df_filtered au lieu de df_anime
+        col_left.plotly_chart(fig_line, use_container_width=True)
+
+        # Préparation et affichage des émotions
+        emotions_columns = colonne_emotions(df_filtered)
+        df_emotions_sums = prepare_emotion_summary(df_filtered, emotions_columns)
+
+        # Afficher le Pie Chart des émotions
+        fig_pie = plot_emotion_pie_chart(df_emotions_sums)
+        col_right.plotly_chart(fig_pie, use_container_width=True)
+
+        # Afficher le WordCloud
+        display_wordcloud(df_filtered)
+
+        # Afficher la Heatmap des émotions par rating
+        fig_heatmap = heatmap_chart(df_filtered, emotions_columns)
+        st.plotly_chart(fig_heatmap, use_container_width=True)
 
         # Création du nom de fichier dynamique et bouton de téléchargement
         file_name = f'anime_reviews_{sanitize_filename(anime_title)}_{anime_id}.csv'
