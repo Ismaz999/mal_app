@@ -26,17 +26,26 @@ def return_date(df_anime):
 def filtre_reviews(df_anime, st4, start, end):
     with st4:
         col1, col2 = st.columns(2)
+
+        has_negative = (df_anime['sentiment'] == 'NEGATIVE').any()
+        has_positive = (df_anime['sentiment'] == 'POSITIVE').any()
+
         with col1:
-            bouton_positif = st.button("Afficher les reviews positives")
+            bouton_positif = st.button("Afficher les reviews positives", disabled=not has_positive)
 
         with col2:
-            bouton_negatif = st.button("Afficher les reviews négatives")
-            
-        start_date, end_date = st4.slider("Sélecionnez votre date", 
-            min_value=start, 
-            max_value=end,
-            value=(start,end),
-            format="YYYY-MM-DD")
+            bouton_negatif = st.button("Afficher les reviews négatives", disabled=not has_negative)
+
+        
+        if start == end:
+            st.warning("Une seule date disponible, le filtre par date ne peut pas être utilisé.")
+            start_date, end_date = start, end
+        else:      
+            start_date, end_date = st4.slider("Sélecionnez votre date", 
+                min_value=start, 
+                max_value=end,
+                value=(start,end),
+                format="YYYY-MM-DD")
 
     bouton_tous = st4.button("Tous les Reviews")
     df_filtered =  df_anime[(df_anime['date'] >= start_date) & (df_anime['date'] <= end_date)]
@@ -71,6 +80,11 @@ def plot_emotion_pie_chart(df_emotions_sums):
     return fig_pie
 
 def display_wordcloud(df_filtered):
+
+    if df_filtered['review'].dropna().empty:
+        st.warning("Aucune review disponible pour générer le nuage de mots.")
+        return
+    
     if 'stopword_dl' not in st.session_state:
         nltk.download('stopwords')
         st.session_state.stopword_dl = True

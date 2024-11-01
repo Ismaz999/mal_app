@@ -4,6 +4,7 @@ import pandas as pd
 from transformers import pipeline
 import re
 import time 
+import streamlit as st
 
 DEBUG = True
 
@@ -12,6 +13,7 @@ def request_anime(anime_name):
     URL = f"https://myanimelist.net/anime.php?q={anime_name.replace(' ', '%20')}&cat=anime"
     recup_page = requests.get(URL)
     recup_soup = BeautifulSoup(recup_page.content, "html.parser")
+
     tag_complet = recup_soup.find('a', class_='hoverinfo_trigger')
     if tag_complet:
         title = tag_complet.find('img')['alt']
@@ -28,24 +30,36 @@ def extract_id_and_title(anime_url):
     return None, None
 
 
-def get_anime_reviews(anime_id, anime_titre, avis_par_page=20, max_pages=3):
-    # URL = f"https://myanimelist.net/anime/{anime_id}/{anime_titre}/reviews"
-    # recup_page = requests.get(URL)
-    # recup_soup = BeautifulSoup(recup_page.content, "html.parser")
+def get_anime_reviews(anime_id, anime_titre, avis_par_page=20, max_pages=10):
+
+    if 'df_anime_reviews' in st.session_state and st.session_state['anime_id'] == anime_id:
+        return st.session_state['df_anime_reviews']
+
+    URL = f"https://myanimelist.net/anime/{anime_id}/{anime_titre}/reviews"
+    recup_page = requests.get(URL)
+    recup_soup = BeautifulSoup(recup_page.content, "html.parser")
+
     reviews, notes, dates = [], [], []
     page_num = 1
 
-    while page_num <= max_pages:  # Limite à 2 pages
-        url_dynamique = f"https://myanimelist.net/anime/{anime_id}/{anime_titre}/reviews?p={page_num}"
-        print(f"Scraping page {page_num}: {url_dynamique}")
-        
-        try:
+    tag_page = recup_soup.find('div', class_='filtered-results-box')
+    nombre_davis = int(tag_page.find('strong').get_text(strip=True))
+    div_avispage = nombre_davis / avis_par_page
+    if nombre_davis % avis_par_page != 0:
+        nombre_page = int(div_avispage) + 1
+    else:
+        nombre_page = int(div_avispage)
+    
+    try:
+        while page_num <= nombre_page and page_num <= max_pages:            
+            url_dynamique = f"https://myanimelist.net/anime/{anime_id}/{anime_titre}/reviews?p={page_num}"
+            print(f"Scraping page {page_num}: {url_dynamique}")
+
             page = requests.get(url_dynamique, timeout=10)
             if page.status_code != 200:
                 print(f"Erreur lors de la récupération de la page {page_num}: Status code {page.status_code}")
                 break
 
-            # page = requests.get(url_dynamique)
             soup = BeautifulSoup(page.content, "html.parser")
             test_review = soup.find_all('div', class_='text')
             test_rating = soup.find_all('div', class_='rating mt20 mb20 js-hidden')
@@ -53,10 +67,6 @@ def get_anime_reviews(anime_id, anime_titre, avis_par_page=20, max_pages=3):
 
             if not test_review:
                 print(f"Aucune review trouvée sur la page {page_num}. Arrêt du scraping.")
-                break
-
-            if not (len(test_review) == len(test_rating) == len(test_date)):
-                print(f"Mismatch dans le nombre d'éléments sur la page {page_num}.")
                 break
 
             for rev, rat, jour in zip(test_review, test_rating, test_date):
@@ -69,53 +79,38 @@ def get_anime_reviews(anime_id, anime_titre, avis_par_page=20, max_pages=3):
                 dates.append(date_text)
 
             if DEBUG:
-                print(f"Page {page_num} - Nombre de reviews récupérées : {len(reviews)}")    
-
-            print(f"Page {page_num} - Nombre de reviews récupérées : {len(reviews)}")
+                print(f"Page {page_num} - Nombre de reviews récupérées : {len(reviews)}")
 
             page_num += 1
-            time.sleep(1)    
+            time.sleep(1)
 
-        except requests.exceptions.RequestException as e:
-            print(f"Exception lors de la récupération de la page {page_num}: {e}")
-            break
-        except Exception as e:
-            print(f"Erreur inattendue sur la page {page_num}: {e}")
-            break
+    except requests.exceptions.RequestException as e:
+        print(f"Exception lors de la récupération de la page {page_num}: {e}")
+    except Exception as e:
+        print(f"Erreur inattendue sur la page {page_num}: {e}")
 
-    return pd.DataFrame({
+    df_reviews = pd.DataFrame({
         'review': reviews,
         'rating': notes,
         'date': dates
     })
 
-# modèle NLP a configurer avant
-# sentiment_classifier = pipeline("sentiment-analysis", truncation=True, max_length=512)
-# emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", truncation=True, max_length=512, top_k=2)
+    # csv_scraping = df_reviews.to_csv(index=False).encode('utf-8')
+    # st.download_button("📥 Télécharger les données brutes (après scraping)", data=csv_scraping, file_name='anime_reviews_brutes.csv', mime='text/csv')
+    
+    st.session_state['df_anime_reviews'] = df_reviews
+    st.session_state['anime_id'] = anime_id
+    return df_reviews
 
-# def split_text(text, max_tokens=512):
-#     words = text.split()
-#     return [' '.join(words[i:i + max_tokens]) for i in range(0, len(words), max_tokens)]
+def get_image(anime_url):
+    pics_url = f"{anime_url}/pics"
 
-# def analyze_sentiment_and_emotions(text):
-#     segments = split_text(text)
-#     all_sentiments = []
-#     emotion_totals = {}
+    page_pics = requests.get(pics_url)
+    soup = BeautifulSoup(page_pics.content, "html.parser")
+    tag_a = soup.find('a', class_='js-picture-gallery')
 
-#     for segment in segments:
-#         sentiment_result = sentiment_classifier(segment)[0]['label']
-#         all_sentiments.append(sentiment_result)
-#         emotion_result = emotion_classifier(segment)
-#         for emotion in emotion_result[0]:
-#             label = emotion['label']
-#             score = emotion['score']
-#             if label in emotion_totals:
-#                 emotion_totals[label] += score
-#             else:
-#                 emotion_totals[label] = score
-
-#     total_segments = len(segments)
-#     avg_emotions = {emotion: score / total_segments for emotion, score in emotion_totals.items()}
-#     sorted_emotions = sorted(avg_emotions.items(), key=lambda x: x[1], reverse=True)
-#     top_two_emotions = sorted_emotions[:2]
-#     return ', '.join(all_sentiments), top_two_emotions
+    if tag_a and 'href' in tag_a.attrs:
+        high_quality_image_url = tag_a['href']
+        return high_quality_image_url
+    else:
+        return None

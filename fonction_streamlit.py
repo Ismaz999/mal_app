@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import requests
 import nltk 
 from fonction_analyse import plot_emotion_pie_chart,plot_line_chart,return_date,filtre_reviews,display_metrics,display_wordcloud,colonne_emotions,prepare_emotion_summary,heatmap_chart
+import time
 
 DEBUG = True
 
@@ -20,7 +21,7 @@ def sanitize_filename(name):
 def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
     if input_utilisateur:
         # Construction de l'URL de recherche
-        URL = f"https://myanimelist.net/search/all?q={input_utilisateur.replace(' ', '%20')}&cat=anime"
+        URL = f"https://myanimelist.net/anime.php?q={input_utilisateur.replace(' ', '+')}"
         
         recup_page = requests.get(URL)
         recup_soup = BeautifulSoup(recup_page.content, "html.parser")
@@ -48,9 +49,23 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
             # Sélectionner un anime parmi les options
             selected_index = st.selectbox(
                 "Sélectionnez un anime :", 
-                range(len(anime_options)), 
-                format_func=lambda x: anime_options[x]
-            )
+                range(len(anime_options)),
+                index=st.session_state.get('selected_anime_index', 0),
+                key='anime_selection',
+                on_change=lambda: st.session_state.update({"selected_anime_index": st.session_state.anime_selection}),
+                format_func=lambda x: anime_options[x]            
+                )
+
+            st.session_state.selected_anime_index = st.session_state.anime_selection
+            selected_index = st.session_state.selected_anime_index
+
+            # time.sleep(2)
+
+            # Problème rencontré : À chaque changement de sélection dans la selectbox, Streamlit rafraîchissait tout le script,
+            # causant une ré-exécution de l'analyse et des incohérences dans les données. Pour résoudre ce problème :
+            # 1. Une clé (`key="anime_select"`) a été attribuée à la `selectbox` pour garder l'état de la sélection stable.
+            # 2. La fonction `on_change` a été utilisée pour ne lancer `perform_analysis_callback` que lorsque l'utilisateur change réellement sa sélection.
+            # Cela garantit que l'analyse n'est lancée qu'une seule fois pour chaque nouvel anime, évitant des appels redondants et des résultats incohérents.
 
             if selected_index is not None:
                 selected_anime = anime_options[selected_index]
@@ -64,8 +79,6 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
                     perform_analysis(selected_anime, selected_url)
         else:
             st.warning("Aucun anime trouvé. Veuillez essayer un autre nom.")
-    else:
-        st.image("https://i.gifer.com/Ptwe.gif", caption="En attente d'un anime")
 
 def render_analysis_tab(df_anime, anime_title, anime_id):
     if df_anime is not None and not df_anime.empty:
@@ -96,6 +109,11 @@ def render_analysis_tab(df_anime, anime_title, anime_id):
             df_filtered = df_filtered[df_filtered['sentiment'] == 'NEGATIVE']
         if bouton_tous:
             df_filtered = df_anime[(df_anime['date'] >= start_date) & (df_anime['date'] <= end_date)]
+
+
+        # # Ajout du téléchargement CSV après application des filtres
+        # csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
+        # st.download_button("📥 Télécharger les données après filtrage", data=csv_filtered, file_name='anime_reviews_filtre.csv', mime='text/csv')
 
         # Afficher les métriques
         display_metrics(df_filtered, st1, st2, st3)

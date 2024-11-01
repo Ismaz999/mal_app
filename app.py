@@ -24,8 +24,11 @@ DEBUG = True
 st.set_page_config(layout="wide", page_title="Sentiment Analysis")
 st.markdown('<h1 align="center">Analyse des avis d\'anime</h1>', unsafe_allow_html=True)
 
-mode_selection = st.radio("Choisissez le mode de sélection d'anime", ("Selectbox", "Option Menu"))
+
 input_utilisateur = st.text_input("Analyse des émotions d'une oeuvre")
+mode_selection = st.radio("Choisissez le mode de sélection d'anime", ("Selectbox", "Option Menu"))
+
+
 
 tabs1, tabs2 = st.tabs(["Menu principal", "Analyse"])
 
@@ -36,13 +39,19 @@ if 'anime_name' not in st.session_state:
     st.session_state.anime_name = None
 if 'anime_id' not in st.session_state:
     st.session_state.anime_id = None
+if 'selected_anime_index' not in st.session_state:
+    st.session_state.selected_anime_index = 0
 
 def perform_analysis(selected_anime, selected_url):
+    
     try:
         with st.spinner("Récupération et analyse des avis en cours..."):
             # Récupérer le titre et l'URL
-            titre_anime, lien_anime = request_anime(selected_anime)
-            st.write(f"Titre Anime: {titre_anime}, Lien Anime: {lien_anime}")  # Debugging
+
+            titre_anime = selected_anime
+            lien_anime = selected_url 
+            # titre_anime, lien_anime = request_anime(selected_anime)
+            st.write(f"Titre Anime: {titre_anime}, Lien Anime: {lien_anime}")  # Debug
 
             if not lien_anime:
                 st.error("Impossible de récupérer les informations de l'anime.")
@@ -50,7 +59,7 @@ def perform_analysis(selected_anime, selected_url):
 
             # Extraire l'ID et le titre de l'anime
             anime_id, anime_title = extract_id_and_title(lien_anime)
-            st.write(f"Anime ID: {anime_id}, Anime Title: {anime_title}")  # Debugging
+            st.write(f"Anime ID: {anime_id}, Anime Title: {anime_title}")  # Debug
 
             if not anime_id or not anime_title:
                 st.error("ID ou titre de l'anime introuvable.")
@@ -63,7 +72,7 @@ def perform_analysis(selected_anime, selected_url):
                 if DEBUG:
                     print("Debug : df_anime est vide ou None après l'appel à get_anime_reviews.")
 
-            st.write(df_anime.head())  # Debugging
+            st.write(df_anime.head())  # Debug
 
             # Stocker les résultats dans st.session_state
             st.session_state.df_anime = df_anime
@@ -97,6 +106,11 @@ with tabs2:
 
         df_emot = pd.json_normalize(df_anime['emotions'])
         df_anime = pd.concat([df_anime, df_emot], axis=1)
+
+        # # Ajout du téléchargement CSV après l'analyse NLP
+        # csv_analyse = df_anime.to_csv(index=False).encode('utf-8')
+        # st.download_button("📥 Télécharger les données après l'analyse des sentiments", data=csv_analyse, file_name='anime_reviews_analyse.csv', mime='text/csv')
+
 
 
         # # Convertir les listes/tuples d'émotions en chaîne de caractères
