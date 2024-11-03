@@ -114,3 +114,31 @@ def get_image(anime_url):
         return high_quality_image_url
     else:
         return None
+    
+def get_anime_details(anime_url):
+    response = requests.get(anime_url)
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    info_tag = None
+    anime_info = {}
+    keys_anime = ["Type", "Episodes", "Status", "Aired", "Genres", "Duration"]
+
+    for x in soup.find_all('h2'):
+        if "Information" in x.text:
+            info_tag = x
+            break
+
+    if info_tag:
+        next_elements = info_tag.find_next_siblings()
+        for element in next_elements:
+            if element.name == 'h2':  # Arrêter quand on rencontre un nouveau tag <h2>
+                break
+            for key in keys_anime:
+                if key in element.text:
+                    value = element.text.replace(f"{key}:", "").strip()
+                    anime_info[key] = value
+
+    # Appel à la fonction pour obtenir l'image
+    image_url = get_image(anime_url)
+
+    return anime_info, image_url

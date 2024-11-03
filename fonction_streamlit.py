@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 import requests
 import nltk 
 from fonction_analyse import plot_emotion_pie_chart,plot_line_chart,return_date,filtre_reviews,display_metrics,display_wordcloud,colonne_emotions,prepare_emotion_summary,heatmap_chart
+from fichier_def_mult import get_anime_details, get_image
 import time
 
 DEBUG = True
@@ -67,16 +68,24 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
             # 2. La fonction `on_change` a été utilisée pour ne lancer `perform_analysis_callback` que lorsque l'utilisateur change réellement sa sélection.
             # Cela garantit que l'analyse n'est lancée qu'une seule fois pour chaque nouvel anime, évitant des appels redondants et des résultats incohérents.
 
-            if selected_index is not None:
-                selected_anime = anime_options[selected_index]
-                selected_url = anime_urls[selected_index]
+            selected_anime = anime_options[selected_index]
+            selected_url = anime_urls[selected_index]
 
-                # Afficher les informations de l'anime sélectionné
-                st.markdown(f"**Vous avez sélectionné :** {selected_anime}")
+            anime_info, image_url = get_anime_details(selected_url)
+            col_left, col_right = st.columns(2)
+
+            with col_left:
+                st.markdown(f"### {selected_anime}")
                 st.markdown(f"[Lien vers l'anime]({selected_url})")
+                for key, value in anime_info.items():
+                    st.write(f"**{key}:** {value}")
 
-                if st.button("ANALYSE MOI CA"):
-                    perform_analysis(selected_anime, selected_url)
+            with col_right:
+                if image_url:
+                    st.image(image_url, caption=selected_anime, width=300)
+
+            if st.button("ANALYSE MOI CA"):
+                perform_analysis(selected_anime, selected_url)
         else:
             st.warning("Aucun anime trouvé. Veuillez essayer un autre nom.")
 
