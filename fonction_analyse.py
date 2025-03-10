@@ -9,78 +9,85 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import datetime
 import plotly.express as px
+import numpy as np
+
+DEBUG = True
 
 def plot_line_chart(df_anime):
     df_grouped = df_anime.groupby('date')['rating'].mean().reset_index()
-    fig_line = px.line(df_grouped, x='date', y='rating', title="Évolution des notes moyennes par jour")
+    fig_line = px.line(df_grouped, x='date', y='rating', 
+                      title="Average Rating Over Time",
+                      labels={"rating": "Average Rating", "date": "Date"})
     return fig_line
 
 def return_date(df_anime):  
     start_date = df_anime['date'].min()
     end_date = df_anime['date'].max()
-    start = datetime.datetime(start_date.year, start_date.month, start_date.day)
-    end = datetime.datetime(end_date.year, end_date.month, end_date.day)
+    start, end = st.slider(
+        "Filter by date range",
+        min_value=start_date.to_pydatetime(),
+        max_value=end_date.to_pydatetime(),
+        value=(start_date.to_pydatetime(), end_date.to_pydatetime()),
+        format="YYYY-MM-DD"
+    )
+    
     return start_date, end_date, start, end
 
-
 def filtre_reviews(df_anime, st4, start, end):
+    df_filtered = df_anime[(df_anime['date'] >= start) & (df_anime['date'] <= end)]
+    
     with st4:
-        col1, col2 = st.columns(2)
-
-        has_negative = (df_anime['sentiment'] == 'NEGATIVE').any()
-        has_positive = (df_anime['sentiment'] == 'POSITIVE').any()
-
-        with col1:
-            bouton_positif = st.button("Afficher les reviews positives", disabled=not has_positive)
-
-        with col2:
-            bouton_negatif = st.button("Afficher les reviews négatives", disabled=not has_negative)
-
+        st.write("Filter by sentiment:")
+        col1, col2, col3 = st.columns(3)
         
-        if start == end:
-            st.warning("Une seule date disponible, le filtre par date ne peut pas être utilisé.")
-            start_date, end_date = start, end
-        else:      
-            start_date, end_date = st4.slider("Sélecionnez votre date", 
-                min_value=start, 
-                max_value=end,
-                value=(start,end),
-                format="YYYY-MM-DD")
-
-    bouton_tous = st4.button("Tous les Reviews")
-    df_filtered =  df_anime[(df_anime['date'] >= start_date) & (df_anime['date'] <= end_date)]
-
-    return df_filtered, bouton_negatif, bouton_positif, bouton_tous
+        with col1:
+            negative_button = st.button("Negative")
+        with col2:
+            positive_button = st.button("Positive")
+        with col3:
+            all_button = st.button("All")
+    
+    return df_filtered, negative_button, positive_button, all_button
 
 def display_metrics(df_filtered, st1, st2, st3):
-    moyenne_rating = df_filtered['rating'].mean()
-    nombre_reviews = len(df_filtered)
-    nombre_positifs = (df_filtered['sentiment'] == 'POSITIVE').sum()
-    pourcentage_positif = (nombre_positifs / nombre_reviews) * 100
+    avg_rating = df_filtered['rating'].mean()
+    review_count = len(df_filtered)
+    positive_count = (df_filtered['sentiment'] == 'POSITIVE').sum()
+    positive_percentage = (positive_count / review_count) * 100 if review_count > 0 else 0
 
-    st1.metric(label="Note Moyenne", value=round(moyenne_rating, 2))
-    st2.metric(label="Nombre de Reviews", value=nombre_reviews)
-    st3.metric(label="Pourcentage de Sentiments Positifs", value=f"{pourcentage_positif:.2f}%")
+    st1.metric(
+        label="Average Rating", 
+        value=f"{round(avg_rating, 2)}/10" if not pd.isna(avg_rating) else "N/A"
+    )
+    
+    st2.metric(
+        label="Number of Reviews", 
+        value=review_count
+    )
+    
+    st3.metric(
+        label="Positive Sentiment", 
+        value=f"{positive_percentage:.1f}%"
+    )
 
 def colonne_emotions(df_filtered):
-    emotions_columns = ['anger', 'disgust', 'fear', 'joy', 'neutral', 'sadness', 'surprise']
-    for col in emotions_columns:
-        if col not in df_filtered.columns:
-            df_filtered[col] = 0
+    emotions_columns = [col for col in df_filtered.columns if col in ['anger', 'disgust', 'fear', 'joy', 'neutral', 'sadness', 'surprise']]
     return emotions_columns
 
 def prepare_emotion_summary(df_filtered, emotions_columns):
-    emotions_sums = df_filtered[emotions_columns].sum()
-    df_emotions_sums = emotions_sums.reset_index()
-    df_emotions_sums.columns = ['emotion', 'count']
+    df_emotions_sums = pd.DataFrame({
+        'emotion': emotions_columns,
+        'score': [df_filtered[col].sum() for col in emotions_columns]
+    })
     return df_emotions_sums
 
 def plot_emotion_pie_chart(df_emotions_sums):
-    fig_pie = px.pie(df_emotions_sums, values='count', names='emotion', title="Répartition des émotions")
+    fig_pie = px.pie(df_emotions_sums, values='score', names='emotion', 
+                    title="Emotion Distribution",
+                    color_discrete_sequence=px.colors.qualitative.Pastel)
     return fig_pie
 
 def display_wordcloud(df_filtered):
-
     if df_filtered['review'].dropna().empty:
         st.warning("Aucune review disponible pour générer le nuage de mots.")
         return
@@ -105,11 +112,18 @@ def display_wordcloud(df_filtered):
         st.pyplot(fig)
 
 def heatmap_chart(df_filtered, emotions_columns):        
-    df_hm = df_filtered.pivot_table(values=emotions_columns,index='rating', aggfunc='sum')
-
-    fig_heatmap = px.imshow(df_hm.T,
-                            labels=dict(x="Rating", y="Emotion", color="Score"),
-                            title="Emotion en fonction du rating",
-                            aspect='auto',
-                            color_continuous_scale='RdYlBu_r')
+    df_heatmap = df_filtered.groupby('rating')[emotions_columns].mean().reset_index()
+    
+    df_heatmap_pivot = df_heatmap.melt(id_vars=['rating'], 
+                                      value_vars=emotions_columns,
+                                      var_name='emotion', 
+                                      value_name='score')
+    
+    fig_heatmap = px.density_heatmap(df_heatmap_pivot, 
+                                    x='rating', 
+                                    y='emotion', 
+                                    z='score',
+                                    title="Emotion Intensity by Rating",
+                                    labels={"rating": "Rating", "emotion": "Emotion", "score": "Intensity"})
+    
     return fig_heatmap

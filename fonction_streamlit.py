@@ -14,7 +14,7 @@ import time
 DEBUG = True
 
 def sanitize_filename(name):
-    #remplace espaces par underscore et en supprimme les caractères spéciaux.
+    # Replace spaces with underscores and remove special characters
     name = name.replace(' ', '_')
     name = re.sub(r'[^\w\-_.]', '', name)
     return name
@@ -49,7 +49,7 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
 
             # Sélectionner un anime parmi les options
             selected_index = st.selectbox(
-                "Sélectionnez un anime :", 
+                "Select an anime:", 
                 range(len(anime_options)),
                 index=st.session_state.get('selected_anime_index', 0),
                 key='anime_selection',
@@ -60,14 +60,6 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
             st.session_state.selected_anime_index = st.session_state.anime_selection
             selected_index = st.session_state.selected_anime_index
 
-            # time.sleep(2)
-
-            # Problème rencontré : À chaque changement de sélection dans la selectbox, Streamlit rafraîchissait tout le script,
-            # causant une ré-exécution de l'analyse et des incohérences dans les données. Pour résoudre ce problème :
-            # 1. Une clé (`key="anime_select"`) a été attribuée à la `selectbox` pour garder l'état de la sélection stable.
-            # 2. La fonction `on_change` a été utilisée pour ne lancer `perform_analysis_callback` que lorsque l'utilisateur change réellement sa sélection.
-            # Cela garantit que l'analyse n'est lancée qu'une seule fois pour chaque nouvel anime, évitant des appels redondants et des résultats incohérents.
-
             selected_anime = anime_options[selected_index]
             selected_url = anime_urls[selected_index]
 
@@ -76,7 +68,7 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
 
             with col_left:
                 st.markdown(f"### {selected_anime}")
-                st.markdown(f"[Lien vers l'anime]({selected_url})")
+                st.markdown(f"[Link to anime]({selected_url})")
                 for key, value in anime_info.items():
                     st.write(f"**{key}:** {value}")
 
@@ -84,18 +76,38 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
                 if image_url:
                     st.image(image_url, caption=selected_anime, width=300)
 
-            if st.button("ANALYSE MOI CA"):
+            if st.button("Run analysis"):
                 perform_analysis(selected_anime, selected_url)
+                
+            # Ajouter un bouton pour effectuer une nouvelle recherche
+            if st.button("🔍 New search from this page"):
+                # Réinitialiser les variables de session liées à la recherche
+                # Utiliser une clé différente pour indiquer qu'une réinitialisation est nécessaire
+                st.session_state.input_value = ""
+                st.session_state.search_performed = False
+                st.session_state.reset_search = True
+                st.session_state.selected_anime_index = 0
+                # Ne pas modifier anime_selection directement
+                st.rerun()
         else:
-            st.warning("Aucun anime trouvé. Veuillez essayer un autre nom.")
+            st.warning("No anime found. Please try another name.")
+            
+            # Ajouter un bouton pour effectuer une nouvelle recherche
+            if st.button("🔍 Try another search"):
+                # Réinitialiser les variables de session liées à la recherche
+                st.session_state.input_value = ""
+                st.session_state.search_performed = False
+                st.rerun()
+    else:
+        st.info("Please enter an anime name in the search field above and click 'Search'.")
 
 def render_analysis_tab(df_anime, anime_title, anime_id):
     if df_anime is not None and not df_anime.empty:
         if DEBUG:
-            print("Debug : Contenu de la colonne 'emotions' après nettoyage")
+            print("Debug: Content of 'emotions' column after cleaning")
             print(df_anime['emotions'].head())
 
-        st.header("Résultats de l'Analyse")
+        st.header("Analysis Results")
 
         # Télécharger les stopwords si nécessaire
         if 'stopword_dl' not in st.session_state:
@@ -109,20 +121,20 @@ def render_analysis_tab(df_anime, anime_title, anime_id):
         st1, st2, st3, st4 = st.columns(4)
 
         # Filtrer les reviews en fonction des interactions utilisateur
-        df_filtered, bouton_negatif, bouton_positif, bouton_tous = filtre_reviews(df_anime, st4, start, end)
+        df_filtered, negative_button, positive_button, all_button = filtre_reviews(df_anime, st4, start, end)
 
         # Appliquer les filtres de sentiments sur les reviews
-        if bouton_positif:
+        if positive_button:
             df_filtered = df_filtered[df_filtered['sentiment'] == 'POSITIVE']
-        if bouton_negatif:
+        if negative_button:
             df_filtered = df_filtered[df_filtered['sentiment'] == 'NEGATIVE']
-        if bouton_tous:
+        if all_button:
             df_filtered = df_anime[(df_anime['date'] >= start_date) & (df_anime['date'] <= end_date)]
 
 
         # # Ajout du téléchargement CSV après application des filtres
         # csv_filtered = df_filtered.to_csv(index=False).encode('utf-8')
-        # st.download_button("📥 Télécharger les données après filtrage", data=csv_filtered, file_name='anime_reviews_filtre.csv', mime='text/csv')
+        # st.download_button("📥 Download filtered data", data=csv_filtered, file_name='anime_reviews_filtered.csv', mime='text/csv')
 
         # Afficher les métriques
         display_metrics(df_filtered, st1, st2, st3)
@@ -152,7 +164,7 @@ def render_analysis_tab(df_anime, anime_title, anime_id):
         # Création du nom de fichier dynamique et bouton de téléchargement
         file_name = f'anime_reviews_{sanitize_filename(anime_title)}_{anime_id}.csv'
         csv = df_anime.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Sauvegarder les données au format CSV", data=csv, file_name=file_name, mime='text/csv')
+        st.download_button("📥 Save data as CSV", data=csv, file_name=file_name, mime='text/csv')
     else:
-        st.warning("Aucune analyse effectuée ou données invalides.")
+        st.warning("No analysis performed or invalid data.")
 
