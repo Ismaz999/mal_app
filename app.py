@@ -21,16 +21,24 @@ DEBUG = True
 
 ### STREAMLIT ###
 
-st.set_page_config(layout="wide", page_title="Sentiment Analysis")
-st.markdown('<h1 align="center">Analyse des avis d\'anime</h1>', unsafe_allow_html=True)
+st.set_page_config(layout="wide", page_title="Anime Sentiment Analysis")
+st.markdown('<h1 align="center">Anime Reviews Analysis</h1>', unsafe_allow_html=True)
 
+# Initialisation des variables dans st.session_state
+if 'reset_search' not in st.session_state:
+    st.session_state.reset_search = False
 
-input_utilisateur = st.text_input("Analyse des émotions d'une oeuvre")
-mode_selection = st.radio("Choisissez le mode de sélection d'anime", ("Selectbox", "Option Menu"))
+# Si une réinitialisation est demandée, on supprime la clé anime_selection pour forcer sa recréation
+if st.session_state.reset_search and 'anime_selection' in st.session_state:
+    # On ne peut pas modifier directement anime_selection, mais on peut le supprimer
+    del st.session_state['anime_selection']
+    st.session_state.reset_search = False
 
-
-
-tabs1, tabs2 = st.tabs(["Menu principal", "Analyse"])
+# Utilisation de session_state pour stocker la valeur de l'input
+if 'input_value' not in st.session_state:
+    st.session_state.input_value = ""
+if 'search_performed' not in st.session_state:
+    st.session_state.search_performed = False
 
 # Initialisation des variables dans st.session_state
 if 'df_anime' not in st.session_state:
@@ -45,32 +53,31 @@ if 'selected_anime_index' not in st.session_state:
 def perform_analysis(selected_anime, selected_url):
     
     try:
-        with st.spinner("Récupération et analyse des avis en cours..."):
+        with st.spinner("Retrieving and analyzing reviews..."):
             # Récupérer le titre et l'URL
+            anime_title = selected_anime
+            anime_url = selected_url 
+            
+            st.write(f"Anime Title: {anime_title}, Anime URL: {anime_url}")  # Debug
 
-            titre_anime = selected_anime
-            lien_anime = selected_url 
-            # titre_anime, lien_anime = request_anime(selected_anime)
-            st.write(f"Titre Anime: {titre_anime}, Lien Anime: {lien_anime}")  # Debug
-
-            if not lien_anime:
-                st.error("Impossible de récupérer les informations de l'anime.")
+            if not anime_url:
+                st.error("Unable to retrieve anime information.")
                 return
 
             # Extraire l'ID et le titre de l'anime
-            anime_id, anime_title = extract_id_and_title(lien_anime)
-            st.write(f"Anime ID: {anime_id}, Anime Title: {anime_title}")  # Debug
+            anime_id, anime_title_mal = extract_id_and_title(anime_url)
+            st.write(f"Anime ID: {anime_id}, MAL Anime Title: {anime_title_mal}")  # Debug
 
-            if not anime_id or not anime_title:
-                st.error("ID ou titre de l'anime introuvable.")
+            if not anime_id or not anime_title_mal:
+                st.error("Anime ID or title not found.")
                 return
 
             # Récupérer les reviews depuis MyAnimeList
-            df_anime = get_anime_reviews(anime_id, anime_title)
+            df_anime = get_anime_reviews(anime_id, anime_title_mal)
             if df_anime is None or df_anime.empty:
-                st.warning("Aucun avis trouvé ou récupération échouée.")
+                st.warning("No reviews found or retrieval failed.")
                 if DEBUG:
-                    print("Debug : df_anime est vide ou None après l'appel à get_anime_reviews.")
+                    print("Debug: df_anime is empty or None after calling get_anime_reviews.")
 
             st.write(df_anime.head())  # Debug
 
@@ -79,16 +86,43 @@ def perform_analysis(selected_anime, selected_url):
             st.session_state.anime_name = selected_anime
             st.session_state.anime_id = anime_id
 
-            st.success("Analyse terminée ! Allez voir les résultats dans l'onglet 'Analyse'.")
+            st.success("Analysis complete! Check the 'Analysis' tab to see the results.")
     except Exception as e:
-        st.error(f"Erreur lors de la récupération des reviews : {e}")
+        st.error(f"Error retrieving reviews: {e}")
+
+# Création des onglets
+tabs1, tabs2 = st.tabs(["Main Menu", "Analysis"])
 
 with tabs1:
-    render_main_tab(mode_selection, input_utilisateur, perform_analysis)
+    # Ajout d'un bouton pour réinitialiser la recherche
+    if st.button("🔄 New Search"):
+        # Réinitialiser les variables de session liées à la recherche
+        st.session_state.input_value = ""
+        st.session_state.search_performed = False
+        st.session_state.selected_anime_index = 0
+        st.session_state.reset_search = True
+        st.rerun()
+        
+    # Création d'un formulaire pour la recherche
+    with st.form(key='search_form'):
+        input_utilisateur = st.text_input("Search for an anime", value=st.session_state.input_value)
+        submit_button = st.form_submit_button(label='Search')
+        
+        if submit_button:
+            st.session_state.input_value = input_utilisateur
+            st.session_state.search_performed = True
+            # Réinitialiser les sélections précédentes
+            st.session_state.selected_anime_index = 0
+            # On ne modifie pas directement anime_selection
+
+    mode_selection = st.radio("Choose selection mode", ("Selectbox", "Option Menu"))
+    
+    # Passer la valeur de l'input et l'état de la recherche à render_main_tab
+    render_main_tab(mode_selection, st.session_state.input_value if st.session_state.search_performed else "", perform_analysis)
 
 
 with tabs2:
-    """Onglet Analyse pour afficher les résultats."""
+    """Analysis tab to display results."""
     df_anime = st.session_state.df_anime
     anime_title = st.session_state.get('anime_name', 'anime')
     anime_id = st.session_state.get('anime_id', '0000')
@@ -99,7 +133,6 @@ with tabs2:
         df_anime['date'] = pd.to_datetime(df_anime['date'], errors='coerce')
 
         # Appliquer l'analyse des sentiments et des émotions
-# Appliquer l'analyse des sentiments et des émotions
         df_anime[['sentiment', 'emotions']] = df_anime['review'].apply(
             lambda x: pd.Series(analyze_sentiment_and_emotions(x))
         )
@@ -109,20 +142,18 @@ with tabs2:
 
         # # Ajout du téléchargement CSV après l'analyse NLP
         # csv_analyse = df_anime.to_csv(index=False).encode('utf-8')
-        # st.download_button("📥 Télécharger les données après l'analyse des sentiments", data=csv_analyse, file_name='anime_reviews_analyse.csv', mime='text/csv')
-
-
+        # st.download_button("📥 Download data after sentiment analysis", data=csv_analyse, file_name='anime_reviews_analyse.csv', mime='text/csv')
 
         # # Convertir les listes/tuples d'émotions en chaîne de caractères
         # if 'emotions' in df_anime.columns:
         #     df_anime['emotions'] = df_anime['emotions'].apply(lambda x: ', '.join([f"{label}: {score:.2f}" for label, score in x]) if isinstance(x, list) else str(x))
         
         if DEBUG:
-            print("Debug : Sentiments et émotions ajoutés à df_anime")
+            print("Debug: Sentiments and emotions added to df_anime")
             print(df_anime.head())
-            print("emotio etionn :", df_anime['emotions'].head())
+            print("Emotions:", df_anime['emotions'].head())
             for value in df_anime['emotions']:
-                print(f"Valeur : {value} Type : {type(value)}")
+                print(f"Value: {value} Type: {type(value)}")
         # Convertir les tuples en chaînes de caractères pour éviter les erreurs Arrow
         if 'emotions' in df_anime.columns:
             df_anime['emotions'] = df_anime['emotions'].apply(lambda x: str(x) if isinstance(x, list) else x)
@@ -130,4 +161,4 @@ with tabs2:
         # Appel à la fonction de rendu de l'analyse
         render_analysis_tab(df_anime, anime_title, anime_id)
     else:
-        st.warning("Aucune analyse effectuée ou données invalides.")
+        st.warning("No analysis performed or invalid data.")
