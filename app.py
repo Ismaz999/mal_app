@@ -11,6 +11,7 @@ from fonction_streamlit import render_main_tab,render_analysis_tab, sanitize_fil
 
 from nlp_processing import analyze_sentiment_and_emotions, split_text
 
+from connexion_post import insert_anime
 
 try:
     stopwords.words('english')
@@ -50,8 +51,7 @@ if 'anime_id' not in st.session_state:
 if 'selected_anime_index' not in st.session_state:
     st.session_state.selected_anime_index = 0
 
-def perform_analysis(selected_anime, selected_url):
-    
+def perform_analysis(selected_anime, selected_url, anime_info, image_url):
     try:
         with st.spinner("Retrieving and analyzing reviews..."):
             # Récupérer le titre et l'URL
@@ -86,12 +86,58 @@ def perform_analysis(selected_anime, selected_url):
             st.session_state.anime_name = selected_anime
             st.session_state.anime_id = anime_id
 
+            #remplissage des dictionnaires
+            anime_dict['url'] = anime_url
+            anime_dict['title'] = anime_title
+            anime_dict['mal_id'] = anime_id
+            anime_dict['image_url'] = image_url 
+            anime_dict['type'] = anime_info.get('Type')
+            anime_dict['episodes'] = anime_info.get('Episodes')
+            anime_dict['status'] = anime_info.get('Status')
+            anime_dict['genres'] = anime_info.get('Genres')
+
+            print("print du dictionnaire", anime_dict)
+
+            review_dict['review_text'] = df_anime['review']
+            review_dict['rating'] = df_anime['rating']
+            review_dict['review_date'] = df_anime['date']
+
+            print("print du dictionnaire", review_dict)
+
             st.success("Analysis complete! Check the 'Analysis' tab to see the results.")
     except Exception as e:
         st.error(f"Error retrieving reviews: {e}")
 
 # Création des onglets
 tabs1, tabs2 = st.tabs(["Main Menu", "Analysis"])
+
+anime_dict = {
+    'mal_id': None,
+    'title': None,
+    'type': None,
+    'episodes': None,
+    'status': None,
+    'genres': None,
+    'url': None,
+    'image_url': None
+}
+
+review_dict = {
+    'review_text': None,
+    'rating': None,
+    'review_date': None,
+}
+
+emotions_dict = {
+    'sentiment': None,
+    'neutral': 0.0,
+    'joy': 0.0,
+    'disgust': 0.0,
+    'surprise': 0.0,
+    'sadness': 0.0,
+    'fear': 0.0,
+    'anger': 0.0
+}
 
 with tabs1:
     # Ajout d'un bouton pour réinitialiser la recherche
@@ -140,14 +186,27 @@ with tabs2:
         df_emot = pd.json_normalize(df_anime['emotions'])
         df_anime = pd.concat([df_anime, df_emot], axis=1)
 
+        emotions_dict['sentiment'] = df_anime['sentiment'].tolist()
+        emotions_dict['neutral'] = df_emot['neutral'].tolist()
+        emotions_dict['joy'] = df_emot['joy'].tolist()
+        emotions_dict['disgust'] = df_emot['disgust'].tolist()
+        emotions_dict['surprise'] = df_emot['surprise'].tolist()
+        emotions_dict['sadness'] = df_emot['sadness'].tolist()
+        emotions_dict['fear'] = df_emot['fear'].tolist()
+        emotions_dict['anger'] = df_emot['anger'].tolist()
+
+        print("Emotions dict rempli:", emotions_dict)
+
         # # Ajout du téléchargement CSV après l'analyse NLP
         # csv_analyse = df_anime.to_csv(index=False).encode('utf-8')
-        # st.download_button("📥 Download data after sentiment analysis", data=csv_analyse, file_name='anime_reviews_analyse.csv', mime='text/csv')
+        # st.download_button(" Download data after sentiment analysis", data=csv_analyse, file_name='anime_reviews_analyse.csv', mime='text/csv')
 
         # # Convertir les listes/tuples d'émotions en chaîne de caractères
         # if 'emotions' in df_anime.columns:
         #     df_anime['emotions'] = df_anime['emotions'].apply(lambda x: ', '.join([f"{label}: {score:.2f}" for label, score in x]) if isinstance(x, list) else str(x))
         
+        insert_anime(anime_dict, review_dict, emotions_dict)
+
         if DEBUG:
             print("Debug: Sentiments and emotions added to df_anime")
             print(df_anime.head())
