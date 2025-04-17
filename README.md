@@ -1,3 +1,6 @@
+## App available here : https://malanalysis.streamlit.app/
+
+
 # Anime Sentiment Analysis
 
 An application that analyzes sentiment and emotions in anime reviews from MyAnimeList.
