@@ -138,6 +138,17 @@ def get_anime_details(anime_url):
                     value = element.text.replace(f"{key}:", "").strip()
                     anime_info[key] = value
 
+    # Nettoyage des genres
+    if 'Genres' in anime_info:
+        genres_clean = []
+        genres = anime_info['Genres'].split(',')
+        for genre in genres:
+            genre = genre.strip()
+            genre_length = len(genre) // 2
+            clean_genre = genre[:genre_length].strip()
+            genres_clean.append(clean_genre)
+        anime_info['Genres'] = ', '.join(genres_clean)
+
     # Appel à la fonction pour obtenir l'image
     image_url = get_image(anime_url)
 

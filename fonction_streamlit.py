@@ -47,18 +47,20 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
                     anime_options.append(anime_name)
                     anime_urls.append(anime_url)
 
+            # Initialisation de l'état de session si nécessaire
+            if 'selected_anime_index' not in st.session_state:
+                st.session_state.selected_anime_index = 0
+
             # Sélectionner un anime parmi les options
             selected_index = st.selectbox(
                 "Select an anime:", 
                 range(len(anime_options)),
-                index=st.session_state.get('selected_anime_index', 0),
-                key='anime_selection',
-                on_change=lambda: st.session_state.update({"selected_anime_index": st.session_state.anime_selection}),
-                format_func=lambda x: anime_options[x]            
-                )
+                index=st.session_state.selected_anime_index,
+                key='anime_selection'
+            )
 
-            st.session_state.selected_anime_index = st.session_state.anime_selection
-            selected_index = st.session_state.selected_anime_index
+            # Mise à jour de l'index sélectionné
+            st.session_state.selected_anime_index = selected_index
 
             selected_anime = anime_options[selected_index]
             selected_url = anime_urls[selected_index]
@@ -77,17 +79,17 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
                     st.image(image_url, caption=selected_anime, width=300)
 
             if st.button("Run analysis"):
-                perform_analysis(selected_anime, selected_url)
+                perform_analysis(selected_anime, selected_url, anime_info, image_url)
                 
             # Ajouter un bouton pour effectuer une nouvelle recherche
             if st.button("🔍 New search from this page"):
                 # Réinitialiser les variables de session liées à la recherche
-                # Utiliser une clé différente pour indiquer qu'une réinitialisation est nécessaire
                 st.session_state.input_value = ""
                 st.session_state.search_performed = False
-                st.session_state.reset_search = True
                 st.session_state.selected_anime_index = 0
-                # Ne pas modifier anime_selection directement
+                st.session_state.df_anime = None
+                st.session_state.anime_name = None
+                st.session_state.anime_id = None
                 st.rerun()
         else:
             st.warning("No anime found. Please try another name.")
@@ -97,15 +99,19 @@ def render_main_tab(mode_selection, input_utilisateur, perform_analysis):
                 # Réinitialiser les variables de session liées à la recherche
                 st.session_state.input_value = ""
                 st.session_state.search_performed = False
+                st.session_state.selected_anime_index = 0
+                st.session_state.df_anime = None
+                st.session_state.anime_name = None
+                st.session_state.anime_id = None
                 st.rerun()
     else:
         st.info("Please enter an anime name in the search field above and click 'Search'.")
 
 def render_analysis_tab(df_anime, anime_title, anime_id):
     if df_anime is not None and not df_anime.empty:
-        if DEBUG:
-            print("Debug: Content of 'emotions' column after cleaning")
-            print(df_anime['emotions'].head())
+        # if DEBUG:
+        #     print("Debug: Content of 'emotions' column after cleaning")
+        #     print(df_anime['emotions'].head())
 
         st.header("Analysis Results")
 

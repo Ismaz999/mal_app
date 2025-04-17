@@ -1,25 +1,15 @@
 import pandas as pd
+from sqlalchemy import create_engine, text
+from config import DB_CONFIG
 
-from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
+def get_engine():
+    DATABASE_URL = f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}?sslmode=require"
+    return create_engine(DATABASE_URL)
 
-import sqlalchemy_utils
-from sqlalchemy_utils import database_exists, create_database
-
-from local_settings import postgresql as settings
-
-def get_engine(user, passwd, host, port, db):
-    url = f"postgresql://{user}:{passwd}@{host}:{port}/{db}"
-    if not database_exists(url):
-        create_database(url)
-    engine = create_engine(url, pool_size=50, echo=False)
-    return engine
-
-engine = get_engine(settings['user'], settings['passwd'], settings['host'], settings['port'], settings['db'])
+engine = get_engine()
 
 def insert_anime(anime_dict, review_dict, emotions_dict):
+    # print("Contenu de emotions_dict avant insertion:", emotions_dict)
     with engine.connect() as connection:
         try:
             transaction = connection.begin()
@@ -47,9 +37,9 @@ def insert_anime(anime_dict, review_dict, emotions_dict):
                 review_result = connection.execute(review_query, current_review)
                 review_id = review_result.scalar()
 
-
                 current_emotion = emotions_dict.copy()
                 current_emotion['sentiment'] = emotions_dict['sentiment'][i]
+                # print(f"Valeur de fear pour la review {i}:", emotions_dict['fear'][i])
 
                 current_emotion['neutral'] = float(emotions_dict['neutral'][i]) if pd.notna(emotions_dict['neutral'][i]) else None
                 current_emotion['joy'] = float(emotions_dict['joy'][i]) if pd.notna(emotions_dict['joy'][i]) else None
@@ -67,9 +57,15 @@ def insert_anime(anime_dict, review_dict, emotions_dict):
                 connection.execute(emotions_query, current_emotion)
 
             transaction.commit()
-            print("Données insérées avec succès")
+            # print("Données insérées avec succès")
 
         except Exception as e:
             transaction.rollback()
             print(f"Erreur lors de l'insertion: {e}")
             raise e
+
+def check_anime_exists(mal_id):
+    with engine.connect() as connection:
+        query = text("SELECT anime_id FROM animes WHERE mal_id = :mal_id")
+        result = connection.execute(query, {'mal_id': mal_id})
+        return result.scalar() is not None

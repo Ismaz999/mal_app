@@ -11,7 +11,7 @@ from fonction_streamlit import render_main_tab,render_analysis_tab, sanitize_fil
 
 from nlp_processing import analyze_sentiment_and_emotions, split_text
 
-from connexion_post import insert_anime
+from connexion_post import insert_anime, check_anime_exists
 
 try:
     stopwords.words('english')
@@ -68,6 +68,11 @@ def perform_analysis(selected_anime, selected_url, anime_info, image_url):
             anime_id, anime_title_mal = extract_id_and_title(anime_url)
             st.write(f"Anime ID: {anime_id}, MAL Anime Title: {anime_title_mal}")  # Debug
 
+            if check_anime_exists(anime_id):
+                st.warning("Cet anime est déjà dans la base de données !")
+                if not st.button("Mettre à jour quand même ?"):
+                    return
+
             if not anime_id or not anime_title_mal:
                 st.error("Anime ID or title not found.")
                 return
@@ -76,8 +81,7 @@ def perform_analysis(selected_anime, selected_url, anime_info, image_url):
             df_anime = get_anime_reviews(anime_id, anime_title_mal)
             if df_anime is None or df_anime.empty:
                 st.warning("No reviews found or retrieval failed.")
-                if DEBUG:
-                    print("Debug: df_anime is empty or None after calling get_anime_reviews.")
+                # print("Debug: df_anime is empty or None after calling get_anime_reviews.")
 
             st.write(df_anime.head())  # Debug
 
@@ -96,13 +100,13 @@ def perform_analysis(selected_anime, selected_url, anime_info, image_url):
             anime_dict['status'] = anime_info.get('Status')
             anime_dict['genres'] = anime_info.get('Genres')
 
-            print("print du dictionnaire", anime_dict)
+            # print("print du dictionnaire", anime_dict)
 
             review_dict['review_text'] = df_anime['review']
             review_dict['rating'] = df_anime['rating']
             review_dict['review_date'] = df_anime['date']
 
-            print("print du dictionnaire", review_dict)
+            # print("print du dictionnaire", review_dict)
 
             st.success("Analysis complete! Check the 'Analysis' tab to see the results.")
     except Exception as e:
@@ -184,8 +188,16 @@ with tabs2:
         )
 
         df_emot = pd.json_normalize(df_anime['emotions'])
+        
+        # Vérifier et initialiser les colonnes d'émotions manquantes
+        emotions_columns = ['neutral', 'joy', 'disgust', 'surprise', 'sadness', 'fear', 'anger']
+        for emotion in emotions_columns:
+            if emotion not in df_emot.columns:
+                df_emot[emotion] = 0.0  # Valeur par défaut si l'émotion n'est pas présente
+
         df_anime = pd.concat([df_anime, df_emot], axis=1)
 
+        # Remplir le dictionnaire d'émotions
         emotions_dict['sentiment'] = df_anime['sentiment'].tolist()
         emotions_dict['neutral'] = df_emot['neutral'].tolist()
         emotions_dict['joy'] = df_emot['joy'].tolist()
@@ -195,7 +207,7 @@ with tabs2:
         emotions_dict['fear'] = df_emot['fear'].tolist()
         emotions_dict['anger'] = df_emot['anger'].tolist()
 
-        print("Emotions dict rempli:", emotions_dict)
+        # print("Emotions dict rempli:", emotions_dict)
 
         # # Ajout du téléchargement CSV après l'analyse NLP
         # csv_analyse = df_anime.to_csv(index=False).encode('utf-8')
@@ -207,12 +219,12 @@ with tabs2:
         
         insert_anime(anime_dict, review_dict, emotions_dict)
 
-        if DEBUG:
-            print("Debug: Sentiments and emotions added to df_anime")
-            print(df_anime.head())
-            print("Emotions:", df_anime['emotions'].head())
-            for value in df_anime['emotions']:
-                print(f"Value: {value} Type: {type(value)}")
+        # if DEBUG:
+        #     print("Debug: Sentiments and emotions added to df_anime")
+        #     print(df_anime.head())
+        #     print("Emotions:", df_anime['emotions'].head())
+        #     for value in df_anime['emotions']:
+        #         print(f"Value: {value} Type: {type(value)}")
         # Convertir les tuples en chaînes de caractères pour éviter les erreurs Arrow
         if 'emotions' in df_anime.columns:
             df_anime['emotions'] = df_anime['emotions'].apply(lambda x: str(x) if isinstance(x, list) else x)
