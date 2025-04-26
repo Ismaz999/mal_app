@@ -20,18 +20,28 @@ def plot_line_chart(df_anime):
                       labels={"rating": "Average Rating", "date": "Date"})
     return fig_line
 
-def return_date(df_anime):  
-    start_date = df_anime['date'].min()
-    end_date = df_anime['date'].max()
-    start, end = st.slider(
-        "Filter by date range",
-        min_value=start_date.to_pydatetime(),
-        max_value=end_date.to_pydatetime(),
-        value=(start_date.to_pydatetime(), end_date.to_pydatetime()),
-        format="YYYY-MM-DD"
-    )
+def return_date(df):
+    min_date = df['date'].min()
+    max_date = df['date'].max()
     
-    return start_date, end_date, start, end
+    # Convertir en datetime Python si c'est un Timestamp pandas
+    if hasattr(min_date, 'to_pydatetime'):
+        min_date = min_date.to_pydatetime()
+        max_date = max_date.to_pydatetime()
+    
+    if min_date == max_date:
+        # Cas où toutes les reviews ont la même date
+        st.info(f"Toutes les reviews datent du {min_date.strftime('%Y-%m-%d')}")
+        return min_date, max_date, min_date, max_date
+    else:
+        start, end = st.slider(
+            "Select date range:",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date),
+            format="YYYY-MM-DD"
+        )
+        return min_date, max_date, start, end
 
 def filtre_reviews(df_anime, st4, start, end):
     df_filtered = df_anime[(df_anime['date'] >= start) & (df_anime['date'] <= end)]
@@ -127,3 +137,17 @@ def heatmap_chart(df_filtered, emotions_columns):
                                     labels={"rating": "Rating", "emotion": "Emotion", "score": "Intensity"})
     
     return fig_heatmap
+
+# Nettoyer les genres rapidement
+# genres = animes_dict['genres']
+# genres_clean = []
+# for genre in genres.split(','):
+#     genre = genre.strip()  # enlève les espaces
+#     genre_length = len(genre) // 2
+#     clean_genre = genre[:genre_length].strip()
+#     genres_clean.append(clean_genre)
+
+# # Mettre à jour le dictionnaire
+# animes_dict['genres'] = ', '.join(genres_clean)
+
+# print("Après nettoyage :", animes_dict)

@@ -69,3 +69,27 @@ def check_anime_exists(mal_id):
         query = text("SELECT anime_id FROM animes WHERE mal_id = :mal_id")
         result = connection.execute(query, {'mal_id': mal_id})
         return result.scalar() is not None
+
+def get_existing_data_from_db(anime_id):
+    with engine.connect() as connection:
+        query = text("""
+            SELECT r.review_text, r.rating, r.date, 
+                   s.sentiment, s.neutral, s.joy, s.disgust, 
+                   s.surprise, s.sadness, s.fear, s.anger
+            FROM reviews r
+            JOIN sentiment_analysis s ON r.review_id = s.review_id
+            WHERE r.anime_id = (
+                SELECT anime_id FROM animes WHERE mal_id = :mal_id
+            )
+        """)
+        result = connection.execute(query, {'mal_id': anime_id})
+        rows = result.fetchall()
+        
+        if not rows:
+            return None
+            
+        df = pd.DataFrame(rows, columns=['review', 'rating', 'date', 
+                                       'sentiment', 'neutral', 'joy', 
+                                       'disgust', 'surprise', 'sadness', 
+                                       'fear', 'anger'])
+        return df

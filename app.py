@@ -11,7 +11,7 @@ from fonction_streamlit import render_main_tab,render_analysis_tab, sanitize_fil
 
 from nlp_processing import analyze_sentiment_and_emotions, split_text
 
-from connexion_post import insert_anime, check_anime_exists
+from connexion_post import insert_anime, check_anime_exists, get_existing_data_from_db
 
 try:
     stopwords.words('english')
@@ -28,6 +28,8 @@ st.markdown('<h1 align="center">Anime Reviews Analysis</h1>', unsafe_allow_html=
 # Initialisation des variables dans st.session_state
 if 'reset_search' not in st.session_state:
     st.session_state.reset_search = False
+if 'bdd_active' not in st.session_state:
+    st.session_state.bdd_active = True  # Par défaut, on considère que la BDD est active
 
 # Si une réinitialisation est demandée, on supprime la clé anime_selection pour forcer sa recréation
 if st.session_state.reset_search and 'anime_selection' in st.session_state:
@@ -54,38 +56,42 @@ if 'selected_anime_index' not in st.session_state:
 def perform_analysis(selected_anime, selected_url, anime_info, image_url):
     try:
         with st.spinner("Retrieving and analyzing reviews..."):
-            # Récupérer le titre et l'URL
             anime_title = selected_anime
-            anime_url = selected_url 
-            
-            st.write(f"Anime Title: {anime_title}, Anime URL: {anime_url}")  # Debug
+            anime_url = selected_url
 
             if not anime_url:
                 st.error("Unable to retrieve anime information.")
                 return
 
-            # Extraire l'ID et le titre de l'anime
             anime_id, anime_title_mal = extract_id_and_title(anime_url)
-            st.write(f"Anime ID: {anime_id}, MAL Anime Title: {anime_title_mal}")  # Debug
 
-            if check_anime_exists(anime_id):
-                st.warning("Cet anime est déjà dans la base de données !")
-                if not st.button("Mettre à jour quand même ?"):
+            # --- Tentative d'accès à la BDD ---
+            try:
+                if check_anime_exists(anime_id):
+                    st.success("Cet anime est déjà dans la base de données !")
+                    df_anime = get_existing_data_from_db(anime_id)
+                    if df_anime is None or df_anime.empty:
+                        st.error("Aucune donnée existante trouvée en base.")
+                        return
+                    st.session_state.df_anime = df_anime
+                    st.session_state.anime_name = selected_anime
+                    st.session_state.anime_id = anime_id
+                    st.session_state.bdd_active = True
                     return
+            except Exception as e:
+                st.warning("Base de données inaccessible, mode analyse temporaire activé.")
+                st.session_state.bdd_active = False
 
+            # --- Si pas de BDD ou pas d'anime en BDD, on scrape ---
             if not anime_id or not anime_title_mal:
                 st.error("Anime ID or title not found.")
                 return
 
-            # Récupérer les reviews depuis MyAnimeList
             df_anime = get_anime_reviews(anime_id, anime_title_mal)
             if df_anime is None or df_anime.empty:
                 st.warning("No reviews found or retrieval failed.")
-                # print("Debug: df_anime is empty or None after calling get_anime_reviews.")
+                return
 
-            st.write(df_anime.head())  # Debug
-
-            # Stocker les résultats dans st.session_state
             st.session_state.df_anime = df_anime
             st.session_state.anime_name = selected_anime
             st.session_state.anime_id = anime_id
@@ -100,15 +106,11 @@ def perform_analysis(selected_anime, selected_url, anime_info, image_url):
             anime_dict['status'] = anime_info.get('Status')
             anime_dict['genres'] = anime_info.get('Genres')
 
-            # print("print du dictionnaire", anime_dict)
-
             review_dict['review_text'] = df_anime['review']
             review_dict['rating'] = df_anime['rating']
             review_dict['review_date'] = df_anime['date']
 
-            # print("print du dictionnaire", review_dict)
-
-            st.success("Analysis complete! Check the 'Analysis' tab to see the results.")
+            st.success("Données récupérées ! Rendez-vous dans l'onglet Analysis pour voir les résultats.")
     except Exception as e:
         st.error(f"Error retrieving reviews: {e}")
 
@@ -149,7 +151,6 @@ with tabs1:
         # Réinitialiser les variables de session liées à la recherche
         st.session_state.input_value = ""
         st.session_state.search_performed = False
-        st.session_state.selected_anime_index = 0
         st.session_state.reset_search = True
         st.rerun()
         
@@ -161,9 +162,7 @@ with tabs1:
         if submit_button:
             st.session_state.input_value = input_utilisateur
             st.session_state.search_performed = True
-            # Réinitialiser les sélections précédentes
-            st.session_state.selected_anime_index = 0
-            # On ne modifie pas directement anime_selection
+            # On ne réinitialise plus l'index ici
 
     mode_selection = st.radio("Choose selection mode", ("Selectbox", "Option Menu"))
     
@@ -207,29 +206,11 @@ with tabs2:
         emotions_dict['fear'] = df_emot['fear'].tolist()
         emotions_dict['anger'] = df_emot['anger'].tolist()
 
-        # print("Emotions dict rempli:", emotions_dict)
+        # Afficher un message si on est en mode sans BDD
+        if not st.session_state.bdd_active:
+            st.warning("Mode analyse temporaire activé - Les données ne seront pas sauvegardées")
 
-        # # Ajout du téléchargement CSV après l'analyse NLP
-        # csv_analyse = df_anime.to_csv(index=False).encode('utf-8')
-        # st.download_button(" Download data after sentiment analysis", data=csv_analyse, file_name='anime_reviews_analyse.csv', mime='text/csv')
-
-        # # Convertir les listes/tuples d'émotions en chaîne de caractères
-        # if 'emotions' in df_anime.columns:
-        #     df_anime['emotions'] = df_anime['emotions'].apply(lambda x: ', '.join([f"{label}: {score:.2f}" for label, score in x]) if isinstance(x, list) else str(x))
-        
-        insert_anime(anime_dict, review_dict, emotions_dict)
-
-        # if DEBUG:
-        #     print("Debug: Sentiments and emotions added to df_anime")
-        #     print(df_anime.head())
-        #     print("Emotions:", df_anime['emotions'].head())
-        #     for value in df_anime['emotions']:
-        #         print(f"Value: {value} Type: {type(value)}")
-        # Convertir les tuples en chaînes de caractères pour éviter les erreurs Arrow
-        if 'emotions' in df_anime.columns:
-            df_anime['emotions'] = df_anime['emotions'].apply(lambda x: str(x) if isinstance(x, list) else x)
-
-        # Appel à la fonction de rendu de l'analyse
+        # Appeler render_analysis_tab avec les données locales uniquement
         render_analysis_tab(df_anime, anime_title, anime_id)
     else:
-        st.warning("No analysis performed or invalid data.")
+        st.warning("Aucune analyse effectuée ou données invalides.")
