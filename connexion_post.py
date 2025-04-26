@@ -1,6 +1,14 @@
 import pandas as pd
 from sqlalchemy import create_engine, text
-from config import DB_CONFIG
+import streamlit as st
+
+DB_CONFIG = {
+    'user': st.secrets["DB_USER"],
+    'password': st.secrets["DB_PASSWORD"],
+    'host': st.secrets["DB_HOST"],
+    'port': st.secrets["DB_PORT"],
+    'dbname': st.secrets["DB_NAME"]
+}
 
 def get_engine():
     DATABASE_URL = f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password']}@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['dbname']}?sslmode=require"
