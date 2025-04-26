@@ -1,4 +1,4 @@
-## App available here : https://malanalysis.streamlit.app/
+## App available here : [https://malanalysis.streamlit.app/](https://mal-review.streamlit.app/)
 
 
 # Anime Sentiment Analysis
