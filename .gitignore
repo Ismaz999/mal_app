@@ -36,3 +36,6 @@ config.py
 local_settings.py
 *.sql
 *.backup 
+ test_recup_dictionnary.py
+requirements.backup.txt
+2.6.0
