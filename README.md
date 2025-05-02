@@ -31,34 +31,14 @@ Cette application Streamlit permet d’analyser les sentiments et émotions pré
 
 ---
 
-## Architecture du projet
+## Architecture & Technologies
 
-- **Frontend** : Streamlit
-- **Backend** : Python, BeautifulSoup, Transformers, NLTK
-- **Base de données** : PostgreSQL (Supabase)
+- **Frontend & Déploiement** : Streamlit (web app, cloud)
+- **Scraping web** : BeautifulSoup, Requests
+- **Traitement du texte** : NLTK, Regex
+- **Analyse de sentiments & émotions** : Transformers (BERT, Roberta), HuggingFace
+- **Stockage & gestion de données** : PostgreSQL (Supabase), SQLAlchemy
 - **Visualisation** : Plotly, Matplotlib, WordCloud
-
----
-
-## Rôles et compétences mobilisées
-
-### 🛠️ Data Engineer
-
-- Scraping robuste des avis sur MyAnimeList (gestion des erreurs, parsing HTML)
-- Automatisation de la collecte et du stockage (SQLAlchemy, Supabase)
-- Gestion des environnements et des secrets (Streamlit Cloud, .gitignore)
-
-### 📊 Data Analyst
-
-- Nettoyage et structuration des données textuelles
-- Exploration des tendances (scores, dates, volumes d’avis)
-- Visualisation interactive (courbes, pie charts, heatmaps, wordclouds)
-
-### 🤖 Data Scientist
-
-- Application de modèles NLP pré-entraînés (BERT, DistilBERT, Roberta)
-- Classification des sentiments et détection des émotions
-- Interprétation des résultats et restitution visuelle
 
 ---
 
@@ -82,20 +62,6 @@ streamlit run app.py
 2. Sélectionner dans la liste proposée
 3. Lancer l’analyse
 4. Explorer les résultats dans l’onglet “Analysis”
-
----
-
-## Technologies utilisées
-
-- **Python** (3.12)
-- **Streamlit**
-- **Transformers** (HuggingFace)
-- **NLTK**
-- **Plotly**
-- **Matplotlib**
-- **BeautifulSoup**
-- **SQLAlchemy**
-- **Supabase (PostgreSQL)**
 
 ---
 
