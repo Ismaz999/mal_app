@@ -103,8 +103,3 @@ streamlit run app.py
 ![aperçu des résultats 1](https://i.imgur.com/NQ3PTf1.png)
 ![aperçu des résultats 2](https://i.imgur.com/JQww72S.png)
 ---
-
-## À propos
-
-Projet réalisé pour mon portfolio Data.  
----
