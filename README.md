@@ -28,7 +28,6 @@ Cette application Streamlit permet d’analyser les sentiments et émotions pré
 ## Aperçu de l’application
 
 ![Aperçu de l’app](https://i.imgur.com/yCRMKXw.png)
-*Exemple de dashboard interactif (remplace par ta capture d’écran)*
 
 ---
 
